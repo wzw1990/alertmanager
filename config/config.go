@@ -435,6 +435,23 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				wcc.APIURL.Path += "/"
 			}
 		}
+		for _, ddc := range rcv.DingDingConfigs {
+			if ddc.HTTPConfig == nil {
+				ddc.HTTPConfig = c.Global.HTTPConfig
+			}
+
+			if ddc.APIURL == nil {
+				return fmt.Errorf("no global DingDing URL set")
+			}
+
+			if ddc.AccessToken == "" {
+				return fmt.Errorf("no global DingDing AccessToken set")
+			}
+
+			if !strings.HasSuffix(ddc.APIURL.Path, "/") {
+				ddc.APIURL.Path += "/"
+			}
+		}
 		for _, voc := range rcv.VictorOpsConfigs {
 			if voc.HTTPConfig == nil {
 				voc.HTTPConfig = c.Global.HTTPConfig
@@ -796,6 +813,7 @@ type Receiver struct {
 	WebhookConfigs   []*WebhookConfig   `yaml:"webhook_configs,omitempty" json:"webhook_configs,omitempty"`
 	OpsGenieConfigs  []*OpsGenieConfig  `yaml:"opsgenie_configs,omitempty" json:"opsgenie_configs,omitempty"`
 	WechatConfigs    []*WechatConfig    `yaml:"wechat_configs,omitempty" json:"wechat_configs,omitempty"`
+	DingDingConfigs  []*DingDingConfig  `yaml:"dingding_configs,omitempty" json:"dingding_configs,omitempty"`
 	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
 	VictorOpsConfigs []*VictorOpsConfig `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
 	SNSConfigs       []*SNSConfig       `yaml:"sns_configs,omitempty" json:"sns_configs,omitempty"`

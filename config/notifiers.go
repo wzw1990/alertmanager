@@ -104,6 +104,14 @@ var (
 		AgentID: `{{ template "wechat.default.agent_id" . }}`,
 	}
 
+	// DefaultDingDingConfig defines default values for DingDing configurations.
+	DefaultDingDingConfig = DingDingConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: false,
+		},
+		Message: `{{ template "dingding.default.message" . }}`,
+	}
+
 	// DefaultVictorOpsConfig defines default values for VictorOps configurations.
 	DefaultVictorOpsConfig = VictorOpsConfig{
 		NotifierConfig: NotifierConfig{
@@ -444,6 +452,28 @@ func (c *WechatConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 	if !wechatTypeMatcher.MatchString(c.MessageType) {
 		return errors.Errorf("WeChat message type %q does not match valid options %s", c.MessageType, wechatValidTypesRe)
+	}
+
+	return nil
+}
+
+// DingDingConfig configures notifications via DingDing.
+type DingDingConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+
+	AccessToken Secret `yaml:"access_token,omitempty" json:"access_token,omitempty"`
+	APIURL      *URL   `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	Message     string `yaml:"message,omitempty" json:"message,omitempty"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *DingDingConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultDingDingConfig
+	type plain DingDingConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
 	}
 
 	return nil
