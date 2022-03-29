@@ -91,7 +91,7 @@ global:
   [ wechat_api_url: <string> | default = "https://qyapi.weixin.qq.com/cgi-bin/" ]
   [ wechat_api_secret: <secret> ]
   [ wechat_api_corp_id: <string> ]
-
+  [ telegram_api_url: <string> | default = "https://api.telegram.org" ]
   # The default HTTP client configuration
   [ http_config: <http_config> ]
 
@@ -116,9 +116,14 @@ receivers:
 inhibit_rules:
   [ - <inhibit_rule> ... ]
 
+# DEPRECATED: use time_intervals below.
 # A list of mute time intervals for muting routes.
 mute_time_intervals:
   [ - <mute_time_interval> ... ]
+
+# A list of time intervals for muting/activating routes.
+time_intervals:
+  [ - <time_interval> ... ]
 ```
 
 ## `<route>`
@@ -161,8 +166,8 @@ match:
 # A set of regex-matchers an alert has to fulfill to match the node.
 match_re:
   [ <labelname>: <regex>, ... ]
-  
-# A list of matchers that an alert has to fulfill to match the node. 
+
+# A list of matchers that an alert has to fulfill to match the node.
 matchers:
   [ - <matcher> ... ]
 
@@ -181,12 +186,22 @@ matchers:
 [ repeat_interval: <duration> | default = 4h ]
 
 # Times when the route should be muted. These must match the name of a
-# mute time interval defined in the mute_time_intervals section. 
+# mute time interval defined in the mute_time_intervals section.
 # Additionally, the root node cannot have any mute times.
 # When a route is muted it will not send any notifications, but
 # otherwise acts normally (including ending the route-matching process
 # if the `continue` option is not set.)
 mute_time_intervals:
+  [ - <string> ...]
+
+# Times when the route should be active. These must match the name of a
+# time interval defined in the time_intervals section. An empty value
+# means that the route is always active.
+# Additionally, the root node cannot have any active times.
+# The route will send notifications only when active, but otherwise
+# acts normally (including ending the route-matching process
+# if the `continue` option is not set).
+active_time_intervals:
   [ - <string> ...]
 
 # Zero or more child routes.
@@ -221,12 +236,32 @@ route:
     group_by: [product, environment]
     matchers:
     - team="frontend"
+
+  # All alerts with the service=inhouse-service label match this sub-route.
+  # the route will be muted during offhours and holidays time intervals.
+  # even if it matches, it will continue to the next sub-route
+  - receiver: 'dev-pager'
+    matchers:
+      - service="inhouse-service"
+    mute_time_intervals:
+      - offhours
+      - holidays
+    continue: true
+
+    # All alerts with the service=inhouse-service label match this sub-route
+    # the route will be active only during offhours and holidays time intervals.
+  - receiver: 'on-call-pager'
+    matchers:
+      - service="inhouse-service"
+    active_time_intervals:
+      - offhours
+      - holidays
 ```
 
-## `<mute_time_interval>`
+## `<time_interval>`
 
-A `mute_time_interval` specifies a named interval of time that may be referenced
-in the routing tree to mute particular routes for particular times of the day.
+A `time_interval` specifies a named interval of time that may be referenced
+in the routing tree to mute/activate particular routes for particular times of the day.
 
 ```yaml
 name: <string>
@@ -309,8 +344,8 @@ target_match:
 # DEPRECATED: Use target_matchers below.
 target_match_re:
   [ <labelname>: <regex>, ... ]
-  
-# A list of matchers that have to be fulfilled by the target 
+
+# A list of matchers that have to be fulfilled by the target
 # alerts to be muted.
 target_matchers:
   [ - <matcher> ... ]
@@ -323,8 +358,8 @@ source_match:
 # DEPRECATED: Use source_matchers below.
 source_match_re:
   [ <labelname>: <regex>, ... ]
-  
-# A list of matchers for which one or more alerts have 
+
+# A list of matchers for which one or more alerts have
 # to exist for the inhibition to take effect.
 source_matchers:
   [ - <matcher> ... ]
@@ -452,6 +487,8 @@ webhook_configs:
   [ - <webhook_config>, ... ]
 wechat_configs:
   [ - <wechat_config>, ... ]
+telegram_configs:
+  [ - <telegram_config>, ... ]
 ```
 
 ## `<email_config>`
@@ -778,7 +815,7 @@ value: <tmpl_string>
 # Configures AWS's Signature Verification 4 signing process to sign requests.
 sigv4:
   [ <sigv4_config> ]
-  
+
 # SNS topic ARN, i.e. arn:aws:sns:us-east-2:698519295917:My-Topic
 # If you don't specify this value, you must specify a value for the phone_number or target_arn.
 # If you are using a FIFO SNS topic you should set a message group interval longer than 5 minutes
@@ -786,21 +823,21 @@ sigv4:
 [ topic_arn: <tmpl_string> ]
 
 # Subject line when the message is delivered to email endpoints.
-[ subject: <tmpl_string> | default = '{{ template "sns.default.subject" .}}' ] 
+[ subject: <tmpl_string> | default = '{{ template "sns.default.subject" .}}' ]
 
 # Phone number if message is delivered via SMS in E.164 format.
 # If you don't specify this value, you must specify a value for the topic_arn or target_arn.
-[ phone_number: <tmpl_string> ] 
+[ phone_number: <tmpl_string> ]
 
 # The  mobile platform endpoint ARN if message is delivered via mobile notifications.
 # If you don't specify this value, you must specify a value for the topic_arn or phone_number.
-[ target_arn: <tmpl_string> ] 
+[ target_arn: <tmpl_string> ]
 
 # The message content of the SNS notification.
-[ message: <tmpl_string> | default = '{{ template "sns.default.message" .}}' ] 
+[ message: <tmpl_string> | default = '{{ template "sns.default.message" .}}' ]
 
 # SNS message attributes.
-attributes: 
+attributes:
   [ <string>: <string> ... ]
 
 # The HTTP client's configuration.
@@ -813,7 +850,7 @@ attributes:
 [ region: <string> ]
 
 # The AWS API keys. Both access_key and secret_key must be supplied or both must be blank.
-# If blank the environment variables `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` are used. 
+# If blank the environment variables `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` are used.
 [ access_key: <string> ]
 [ secret_key: <secret> ]
 
@@ -826,15 +863,29 @@ attributes:
 
 ## `<matcher>`
 
-A matcher is a string with a syntax inspired by PromQL and OpenMetrics. The syntax of a matcher consists of three tokens: 
+A matcher is a string with a syntax inspired by PromQL and OpenMetrics. The syntax of a matcher consists of three tokens:
 
-- A valid Prometheus label name. 
+- A valid Prometheus label name.
 
 - One of  `=`, `!=`, `=~`, or `!~`. `=` means equals, `!=` means that the strings are not equal, `=~` is used for equality of regex expressions and `!~` is used for un-equality of regex expressions. They have the same meaning as known from PromQL selectors.
 
-- A UTF-8 string, which may be enclosed in double quotes. Before or after each token, there may be any amount of whitespace. 
+- A UTF-8 string, which may be enclosed in double quotes. Before or after each token, there may be any amount of whitespace.
 
 The 3rd token may be the empty string. Within the 3rd token, OpenMetrics escaping rules apply: `\"` for a double-quote, `\n` for a line feed, `\\` for a literal backslash. Unescaped `"` must not occur inside the 3rd token (only as the 1st or last character). However, literal line feed characters are tolerated, as are single `\` characters not followed by `\`, `n`, or `"`. They act as a literal backslash in that case.
+
+Matchers are ANDed together, meaning that all matchers must evaluate to "true" when tested against the labels on a given alert. For example, an alert with these labels:
+
+```json
+{"alertname":"Watchdog","severity":"none"}
+```
+
+would NOT match this list of matchers:
+
+```yaml
+matchers:
+  - alertname = Watchdog
+  - severity =~ "warning|critical"
+```
 
 In the configuration, multiple matchers are combined in a YAML list. However, it is also possible to combine multiple matchers within a single YAML string, again using syntax inspired by PromQL. In such a string, a leading `{` and/or a trailing `}` is optional and will be trimmed before further parsing. Individual matchers are separated by commas outside of quoted parts of the string. Those commas may be surrounded by whitespace. Parts of the string inside unescaped double quotes `"…"` are considered quoted (and commas don't act as separators there). If double quotes are escaped with a single backslash `\`, they are ignored for the purpose of identifying quoted parts of the input string. If the input string, after trimming the optional trailing `}`, ends with a comma, followed by optional whitespace, this comma and whitespace will be trimmed.
 
@@ -842,37 +893,37 @@ Here are some examples of valid string matchers:
 
 1. Shown below are two equality matchers combined in a long form YAML list.
 
-```yaml
-  matchers:
-   - foo = bar
-   - dings !=bums 
-```
+    ```yaml
+    matchers:
+      - foo = bar
+      - dings !=bums
+    ```
 
 2. Similar to example 1, shown below are two equality matchers combined in a short form YAML list.
 
-```yaml
-matchers: [ foo = bar, dings != bums ]
-```
+    ```yaml
+    matchers: [ foo = bar, dings != bums ]
+    ```
 
-As shown below, in the short-form, it's generally better to quote the list elements to avoid problems with special characters like commas:
+    As shown below, in the short-form, it's generally better to quote the list elements to avoid problems with special characters like commas:
 
-```yaml
-matchers: [ "foo = bar,baz", "dings != bums" ]
-```
+    ```yaml
+    matchers: [ "foo = bar,baz", "dings != bums" ]
+    ```
 
 3. You can also put both matchers into one PromQL-like string. Single quotes for the whole string work best here.
 
-```yaml
-matchers: [ '{foo="bar",dings!="bums"}' ]
-```
+    ```yaml
+    matchers: [ '{foo="bar",dings!="bums"}' ]
+    ```
 
 4. To avoid any confusion about YAML string quoting and escaping, you can use YAML block quoting and then only worry about the OpenMetrics escaping inside the block. A complex example with a regular expression and different quotes inside the label value is shown below:
 
-```yaml
-matchers:
-  - |
-      {quote=~"She said: \"Hi, all!( How're you…)?\""}
-```
+    ```yaml
+    matchers:
+      - |
+          {quote=~"She said: \"Hi, all!( How're you…)?\""}
+    ```
 
 ## `<victorops_config>`
 
@@ -987,4 +1038,32 @@ API](http://admin.wechat.com/wiki/index.php?title=Customer_Service_Messages).
 [ to_user: <string> | default = '{{ template "wechat.default.to_user" . }}' ]
 [ to_party: <string> | default = '{{ template "wechat.default.to_party" . }}' ]
 [ to_tag: <string> | default = '{{ template "wechat.default.to_tag" . }}' ]
+```
+
+## `<telegram_config>`
+```yaml
+# Whether to notify about resolved alerts.
+[ send_resolved: <boolean> | default = true ]
+
+# The Telegram API URL i.e. https://api.telegram.org.
+# If not specified, default API URL will be used.
+[ api_url: <string> | default = global.telegram_api_url ]
+
+# Telegram bot token
+[ bot_token: <string> ]
+
+# ID of the chat where to send the messages.
+[ chat_id: <int> ]
+
+# Message template
+[ message: <tmpl_string> default = '{{ template "telegram.default.message" .}}' ]
+
+# Disable telegram notifications
+[ disable_notifications: <boolean> | default = false ]
+
+# Parse mode for telegram message, supported values are MarkdownV2, Markdown, HTML and empty string for plain text.
+[ parse_mode: <string> | default = "MarkdownV2" ]
+
+# The HTTP client's configuration.
+[ http_config: <http_config> | default = global.http_config ]
 ```
